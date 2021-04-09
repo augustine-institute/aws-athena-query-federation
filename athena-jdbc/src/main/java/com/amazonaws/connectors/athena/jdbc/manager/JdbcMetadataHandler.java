@@ -62,10 +62,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Abstracts JDBC metadata handler and provides common reusable metadata handling.
@@ -211,14 +213,34 @@ public abstract class JdbcMetadataHandler
     @Override
     public GetTableResponse doGetTable(final BlockAllocator blockAllocator, final GetTableRequest getTableRequest)
     {
+        Set<String> envOptions = getEnvOptions(getTableRequest.getCatalogName());
+
+        TableName tableName = getTableRequest.getTableName();
+        if (envOptions.contains("uppercaseTableNames")) {
+          tableName = new TableName(
+              tableName.getSchemaName(),
+              tableName.getTableName().toUpperCase()
+          );
+        }
+
         try (Connection connection = jdbcConnectionFactory.getConnection(getCredentialProvider())) {
             Schema partitionSchema = getPartitionSchema(getTableRequest.getCatalogName());
-            return new GetTableResponse(getTableRequest.getCatalogName(), getTableRequest.getTableName(), getSchema(connection, getTableRequest.getTableName(), partitionSchema),
+            return new GetTableResponse(getTableRequest.getCatalogName(), tableName, getSchema(connection, tableName, partitionSchema),
                     partitionSchema.getFields().stream().map(Field::getName).collect(Collectors.toSet()));
         }
         catch (SQLException sqlException) {
             throw new RuntimeException(sqlException.getErrorCode() + ": " + sqlException.getMessage());
         }
+    }
+
+    protected Set<String> getEnvOptions(String catalogName)
+    {
+      String optionsStr = System.getenv(catalogName + "_options");
+      if (optionsStr == null) {
+        return Collections.<String>emptySet();
+      }
+      String[] options = optionsStr.split(",");
+      return Stream.of(options).collect(Collectors.toSet());
     }
 
     private Schema getSchema(Connection jdbcConnection, TableName tableName, Schema partitionSchema)

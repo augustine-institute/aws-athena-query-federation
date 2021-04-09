@@ -158,11 +158,32 @@ public class MySqlMetadataHandler
           databaseName = escapeNamePattern(databaseName, escape);
         }
 
+        String tableName = tableHandle.getTableName();
+        // table names are lowercase here, even if they were in the query as uppercase
+        //tableName = caseSensitizeTableName(databaseName, tableName, metadata);
         return metadata.getColumns(
                 databaseName,
                 null,
-                escapeNamePattern(tableHandle.getTableName(), escape),
+                escapeNamePattern(tableName, escape),
                 null);
+    }
+
+    private String caseSensitizeTableName(final String catalogName, final String tableName, final DatabaseMetaData metadata)
+            throws SQLException
+    {
+      ResultSet resultSet = metadata.getTables(
+          catalogName,
+          null,
+          null,
+          new String[] {"TABLE", "VIEW"});
+
+      while (resultSet.next()) {
+        String name = resultSet.getString("TABLE_NAME");
+        if (tableName.toLowerCase().equals(name.toLowerCase())) {
+          return name;
+        }
+      }
+      return tableName;
     }
 
     @Override

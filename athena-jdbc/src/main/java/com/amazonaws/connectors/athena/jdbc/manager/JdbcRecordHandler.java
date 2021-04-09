@@ -82,9 +82,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Abstracts JDBC record handler and provides common reusable split records handling.
@@ -125,14 +129,34 @@ public abstract class JdbcRecordHandler
         return null;
     }
 
+    protected Set<String> getEnvOptions(String catalogName)
+    {
+      String optionsStr = System.getenv(catalogName + "_options");
+      if (optionsStr == null) {
+        return Collections.<String>emptySet();
+      }
+      String[] options = optionsStr.split(",");
+      return Stream.of(options).collect(Collectors.toSet());
+    }
+
     @Override
     public void readWithConstraint(BlockSpiller blockSpiller, ReadRecordsRequest readRecordsRequest, QueryStatusChecker queryStatusChecker)
     {
-        LOGGER.info("{}: Catalog: {}, table {}, splits {}", readRecordsRequest.getQueryId(), readRecordsRequest.getCatalogName(), readRecordsRequest.getTableName(),
+        Set<String> envOptions = getEnvOptions(readRecordsRequest.getCatalogName());
+
+        TableName tableName = readRecordsRequest.getTableName();
+        if (envOptions.contains("uppercaseTableNames")) {
+          tableName = new TableName(
+              tableName.getSchemaName(),
+              tableName.getTableName().toUpperCase()
+          );
+        }
+
+        LOGGER.info("{}: Catalog: {}, table {}, splits {}", readRecordsRequest.getQueryId(), readRecordsRequest.getCatalogName(), tableName,
                 readRecordsRequest.getSplit().getProperties());
         try (Connection connection = this.jdbcConnectionFactory.getConnection(getCredentialProvider())) {
             connection.setAutoCommit(false); // For consistency. This is needed to be false to enable streaming for some database types.
-            try (PreparedStatement preparedStatement = buildSplitSql(connection, readRecordsRequest.getCatalogName(), readRecordsRequest.getTableName(),
+            try (PreparedStatement preparedStatement = buildSplitSql(connection, readRecordsRequest.getCatalogName(), tableName,
                     readRecordsRequest.getSchema(), readRecordsRequest.getConstraints(), readRecordsRequest.getSplit());
                     ResultSet resultSet = preparedStatement.executeQuery()) {
                 Map<String, String> partitionValues = readRecordsRequest.getSplit().getProperties();
