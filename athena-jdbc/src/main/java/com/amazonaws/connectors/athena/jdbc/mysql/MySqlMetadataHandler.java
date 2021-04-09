@@ -25,6 +25,7 @@ import com.amazonaws.athena.connector.lambda.data.BlockAllocator;
 import com.amazonaws.athena.connector.lambda.data.BlockWriter;
 import com.amazonaws.athena.connector.lambda.data.SchemaBuilder;
 import com.amazonaws.athena.connector.lambda.domain.Split;
+import com.amazonaws.athena.connector.lambda.domain.TableName;
 import com.amazonaws.athena.connector.lambda.domain.spill.SpillLocation;
 import com.amazonaws.athena.connector.lambda.metadata.GetSplitsRequest;
 import com.amazonaws.athena.connector.lambda.metadata.GetSplitsResponse;
@@ -39,6 +40,7 @@ import com.amazonaws.services.athena.AmazonAthena;
 import com.amazonaws.services.secretsmanager.AWSSecretsManager;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.apache.arrow.vector.complex.reader.FieldReader;
 import org.apache.arrow.vector.types.Types;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -46,6 +48,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -94,6 +97,72 @@ public class MySqlMetadataHandler
             AmazonAthena athena, final JdbcConnectionFactory jdbcConnectionFactory)
     {
         super(databaseConnectionConfig, secretsManager, athena, jdbcConnectionFactory);
+    }
+
+    @Override
+    protected Set<String> listDatabaseNames(final Connection jdbcConnection)
+            throws SQLException
+    {
+        LOGGER.info("Getting MySql/MariaDB catalogs");
+        try (ResultSet resultSet = jdbcConnection.getMetaData().getCatalogs()) {
+            ImmutableSet.Builder<String> schemaNames = ImmutableSet.builder();
+            while (resultSet.next()) {
+                String schemaName = resultSet.getString("TABLE_CAT");
+                // skip internal schemas
+                if (!schemaName.equals("information_schema")
+                      && !schemaName.equals("innodb")
+                      && !schemaName.equals("mysql")
+                      && !schemaName.equals("performance_schema")
+                      && !schemaName.equals("tmp")
+                      ) {
+                    schemaNames.add(schemaName);
+                }
+            }
+            return schemaNames.build();
+        }
+    }
+
+    @Override
+    protected ResultSet getTables(final Connection connection, final String schemaName)
+            throws SQLException
+    {
+        DatabaseMetaData metadata = connection.getMetaData();
+        String escape = metadata.getSearchStringEscape();
+        return metadata.getTables(
+                escapeNamePattern(schemaName, escape),
+                null,
+                null,
+                new String[] {"TABLE", "VIEW"});
+    }
+
+    @Override
+    protected TableName getSchemaTableName(final ResultSet resultSet)
+            throws SQLException
+    {
+        return new TableName(
+                resultSet.getString("TABLE_CAT"),
+                resultSet.getString("TABLE_NAME"));
+    }
+
+    @Override
+    protected ResultSet getColumns(final String catalogName, final TableName tableHandle, final DatabaseMetaData metadata)
+            throws SQLException
+    {
+        String escape = metadata.getSearchStringEscape();
+
+        String databaseName = tableHandle.getSchemaName();
+        if (databaseName == null || databaseName.isEmpty()) {
+          databaseName = catalogName;
+        }
+        else {
+          databaseName = escapeNamePattern(databaseName, escape);
+        }
+
+        return metadata.getColumns(
+                databaseName,
+                null,
+                escapeNamePattern(tableHandle.getTableName(), escape),
+                null);
     }
 
     @Override

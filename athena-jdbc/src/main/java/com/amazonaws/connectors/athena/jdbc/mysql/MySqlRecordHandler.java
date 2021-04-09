@@ -84,7 +84,7 @@ public class MySqlRecordHandler
     public PreparedStatement buildSplitSql(Connection jdbcConnection, String catalogName, TableName tableName, Schema schema, Constraints constraints, Split split)
             throws SQLException
     {
-        PreparedStatement preparedStatement = jdbcSplitQueryBuilder.buildSql(jdbcConnection, null, tableName.getSchemaName(), tableName.getTableName(), schema, constraints, split);
+        PreparedStatement preparedStatement = jdbcSplitQueryBuilder.buildSql(jdbcConnection, tableName.getSchemaName(), null, tableName.getTableName(), schema, constraints, split);
 
         // Disable fetching all rows.
         preparedStatement.setFetchSize(Integer.MIN_VALUE);
