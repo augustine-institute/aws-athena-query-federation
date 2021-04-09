@@ -9,11 +9,12 @@ Following databases are supported:
 1. MySql
 2. PostGreSql
 3. Redshift
+4. MariaDB
 
 # Terms
 
 * **Database Instance:** Any instance of a database deployed on premises, EC2 or using RDS.
-* **Database type:** Could be one of mysql, postgres, redshift.
+* **Database type:** Could be one of mariadb, mysql, postgres, redshift.
 * **Handler:** A Lambda handler accessing your database instance(s). Could be metadata or a record handler.
 * **Metadata Handler:** A Lambda handler that retrieves metadata from your database instance(s).
 * **Record Handler:** A Lambda handler that retrieves data records from your database instance(s).
@@ -35,7 +36,7 @@ Connection string is used to connect to a database instance. Following format is
 `${db_type}://${jdbc_connection_string}`
 
 ```
-db_type                     One of following, mysql, postgres, redshift.
+db_type                     One of following, mariadb, mysql, postgres, redshift.
 jdbc_connection_string      Connection string for a database type. For example, MySql connection String: jdbc:mysql://host1:33060/database
 ```
 
@@ -213,4 +214,4 @@ For latest version information see [pom.xml](./pom.xml).
 
 # Performance tuning
 
-MySql and PostGreSql support native partitions. Athena's lambda connector can retrieve data from these partitions in parallel. We highly recommend native partitioning for retrieving huge datasets with uniform partition distribution.
+MariaDB, MySql and PostGreSql support native partitions. Athena's lambda connector can retrieve data from these partitions in parallel. We highly recommend native partitioning for retrieving huge datasets with uniform partition distribution.

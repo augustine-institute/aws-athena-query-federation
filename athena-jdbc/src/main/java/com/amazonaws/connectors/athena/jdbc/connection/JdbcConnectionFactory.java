@@ -40,6 +40,7 @@ public interface JdbcConnectionFactory
     enum DatabaseEngine
     {
         MYSQL("mysql"),
+        MARIADB("mariadb"),
         POSTGRES("postgres"),
         REDSHIFT("redshift");
 
